@@ -59,6 +59,14 @@ echo ""
 read -n 1 -s -r -p "Press any key to begin..."
 echo ""
 
+# Create ~/Dev up-front so it lands even if a later step bails out.
+if [ ! -d "$HOME/Dev" ]; then
+  mkdir -p "$HOME/Dev"
+  ok "Created ~/Dev - put all your coding projects in here."
+else
+  ok "~/Dev already exists."
+fi
+
 # ---------- 1. Xcode Command Line Tools ----------
 banner "1/9  Xcode Command Line Tools"
 if xcode-select -p >/dev/null 2>&1; then
@@ -132,14 +140,6 @@ if [ -z "$(git config --global user.email || true)" ]; then
   ok "Git identity set: $GIT_NAME <$GIT_EMAIL>"
 else
   ok "Git identity already set ($(git config --global user.email))."
-fi
-
-# ~/Dev folder for projects
-if [ ! -d "$HOME/Dev" ]; then
-  mkdir -p "$HOME/Dev"
-  ok "Created ~/Dev - put all your coding projects in here."
-else
-  ok "~/Dev already exists."
 fi
 
 # ---------- 4. Warp terminal ----------
