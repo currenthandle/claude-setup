@@ -175,6 +175,13 @@ if [ -d "/Applications/Visual Studio Code.app" ]; then
 else
   brew install --cask visual-studio-code
 fi
+# Symlink the 'code' CLI into ~/.local/bin so 'code .' works from any terminal.
+VSCODE_CLI="/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code"
+if [ -x "$VSCODE_CLI" ]; then
+  mkdir -p "$HOME/.local/bin"
+  ln -sf "$VSCODE_CLI" "$HOME/.local/bin/code"
+  ok "Linked 'code' CLI -> ~/.local/bin/code"
+fi
 if [ -d "/Applications/Google Chrome.app" ]; then
   ok "Chrome already installed."
 else
