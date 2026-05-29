@@ -147,7 +147,14 @@ banner "4/9  Warp"
 if [ -d "/Applications/Warp.app" ]; then
   ok "Already installed."
 else
-  brew install --cask warp
+  # The --cask invocation has been flaky on some machines; fall back to bare
+  # 'brew install warp' which lets Homebrew auto-resolve to the cask.
+  brew install --cask warp || brew install warp || true
+  if [ -d "/Applications/Warp.app" ]; then
+    ok "Warp installed."
+  else
+    warn "Warp install did not complete. Manually run:  brew install warp"
+  fi
 fi
 
 # Set Warp as the default handler for terminal-y file types.
@@ -241,25 +248,64 @@ ok "Chrome DevTools MCP registered."
 # ---------- 9. Skills & Plugins ----------
 banner "9/9  Skills and plugins"
 
-# Anthropic skill-creator (skill that helps you build other skills)
+# Resolve the claude binary explicitly - in this same shell session, ~/.local/bin
+# was added to PATH above, but on some setups (esp. when `claude` was also
+# brew-installed previously and brew shellenv ran after) the cache can be stale.
+CLAUDE_BIN="$(command -v claude || true)"
+if [ -z "$CLAUDE_BIN" ] && [ -x "$HOME/.local/bin/claude" ]; then
+  CLAUDE_BIN="$HOME/.local/bin/claude"
+fi
+if [ -z "$CLAUDE_BIN" ]; then
+  warn "Could not find the 'claude' binary on PATH. Skipping plugin install."
+  warn "After this finishes, open a new terminal and run:"
+  warn "  claude plugin marketplace add Lum1104/Understand-Anything"
+  warn "  claude plugin install understand-anything"
+else
+  ok "Using claude binary at: $CLAUDE_BIN"
+fi
+
+# --- 9a. Anthropic skill-creator (a skill that helps you write skills) ---
 say "Installing Anthropic 'skill-creator' skill..."
 SKILLS_DIR="$HOME/.claude/skills"
 mkdir -p "$SKILLS_DIR"
 TMP_SKILLS=$(mktemp -d)
-if git clone --depth 1 https://github.com/anthropics/skills "$TMP_SKILLS/anthropic-skills" >/dev/null 2>&1; then
+if git clone --depth 1 https://github.com/anthropics/skills "$TMP_SKILLS/anthropic-skills"; then
   rm -rf "$SKILLS_DIR/skill-creator"
   cp -R "$TMP_SKILLS/anthropic-skills/skills/skill-creator" "$SKILLS_DIR/skill-creator"
   rm -rf "$TMP_SKILLS"
-  ok "skill-creator installed at ~/.claude/skills/skill-creator"
+  if [ -f "$SKILLS_DIR/skill-creator/SKILL.md" ]; then
+    ok "skill-creator installed at ~/.claude/skills/skill-creator"
+  else
+    warn "skill-creator copy looks incomplete - check ~/.claude/skills/skill-creator"
+  fi
 else
-  warn "Could not clone anthropics/skills - skipping skill-creator. Re-run installer or clone manually."
+  warn "git clone of anthropics/skills failed - skipping skill-creator."
+  warn "Re-run installer or manually:  git clone https://github.com/anthropics/skills && cp -R skills/skills/skill-creator ~/.claude/skills/"
 fi
 
-# Understand-Anything plugin (Lum1104) via Claude Code's plugin marketplace
-say "Installing 'understand-anything' plugin..."
-claude plugin marketplace add Lum1104/Understand-Anything 2>&1 | tail -3 || true
-claude plugin install understand-anything 2>&1 | tail -3 || true
-ok "understand-anything plugin installed."
+# --- 9b. Understand-Anything plugin (Lum1104) via Claude Code plugin marketplace ---
+if [ -n "$CLAUDE_BIN" ]; then
+  say "Adding 'understand-anything' marketplace..."
+  if "$CLAUDE_BIN" plugin marketplace add Lum1104/Understand-Anything --scope user; then
+    ok "Marketplace added."
+  else
+    warn "Failed to add marketplace - skipping understand-anything plugin."
+    warn "Run manually:  claude plugin marketplace add Lum1104/Understand-Anything"
+  fi
+
+  say "Installing 'understand-anything' plugin..."
+  if "$CLAUDE_BIN" plugin install understand-anything --scope user; then
+    # Verify it actually shows up
+    if "$CLAUDE_BIN" plugin list 2>/dev/null | grep -q "understand-anything"; then
+      ok "understand-anything plugin installed and verified."
+    else
+      warn "Plugin install command succeeded but plugin not visible in 'claude plugin list'. Restart Claude Code to refresh."
+    fi
+  else
+    warn "Failed to install understand-anything plugin."
+    warn "Run manually:  claude plugin install understand-anything"
+  fi
+fi
 
 # ---------- Done ----------
 banner "All done!"
